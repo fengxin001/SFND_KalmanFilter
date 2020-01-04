@@ -5,6 +5,10 @@
 #include "sensors/lidar.h"
 #include "tools.h"
 
+#include <iostream>
+#include <fstream>
+
+
 class Highway
 {
 public:
@@ -26,9 +30,18 @@ public:
 	bool visualize_radar = true;
 	bool visualize_pcd = false;
 	// Predict path in the future using UKF
-	double projectedTime = 0;
-	int projectedSteps = 0;
+	double projectedTime = 1;
+	int projectedSteps = 5;
 	// --------------------------------
+
+	// output NIS values to file
+	std::ofstream NIS_ouput;
+
+	// output ground truth, ukf estimated, lidar and radar measured data to file
+	std::ofstream groundTruth_data;
+	std::ofstream estimated_data;
+	std::ofstream lidarMeasured_data;
+	std::ofstream radarMeasured_data;
 
 	Highway(pcl::visualization::PCLVisualizer::Ptr& viewer)
 	{
@@ -130,8 +143,18 @@ public:
 				VectorXd gt(4);
 				gt << traffic[i].position.x, traffic[i].position.y, traffic[i].velocity*cos(traffic[i].angle), traffic[i].velocity*sin(traffic[i].angle);
 				tools.ground_truth.push_back(gt);
-				tools.lidarSense(traffic[i], viewer, timestamp, visualize_lidar);
-				tools.radarSense(traffic[i], egoCar, viewer, timestamp, visualize_radar);
+
+				// ground truth data output
+				groundTruth_data<<traffic[i].ukf.time_us_<<","<<i<<","<<traffic[i].position.x<<","<<traffic[i].position.y<<","<<traffic[i].velocity<<","<<traffic[i].angle<<"\n";
+				
+				lmarker lidar_meas_package = tools.lidarSense(traffic[i], viewer, timestamp, visualize_lidar);
+				// lidar measurement data output
+				lidarMeasured_data<<traffic[i].ukf.time_us_<<","<<i<<","<<lidar_meas_package.x<<","<<lidar_meas_package.y<<"\n";
+
+				rmarker radar_meas_package = tools.radarSense(traffic[i], egoCar, viewer, timestamp, visualize_radar);
+				// radar measurement data output
+				radarMeasured_data<<traffic[i].ukf.time_us_<<","<<i<<","<<radar_meas_package.rho<<","<<radar_meas_package.phi<<","<<radar_meas_package.rho_dot<<"\n";
+
 				tools.ukfResults(traffic[i],viewer, projectedTime, projectedSteps);
 				VectorXd estimate(4);
 				double v  = traffic[i].ukf.x_(2);
@@ -140,7 +163,12 @@ public:
     			double v2 = sin(yaw)*v;
 				estimate << traffic[i].ukf.x_[0], traffic[i].ukf.x_[1], v1, v2;
 				tools.estimations.push_back(estimate);
-	
+
+				// NIS evaluation output
+				NIS_ouput << traffic[i].ukf.time_us_ << ","<<i<<","<< traffic[i].ukf.NIS_lidar_ <<","<< traffic[i].ukf.NIS_radar_<< "\n";
+				// ukf estimated data output
+				estimated_data<<traffic[i].ukf.time_us_<<","<<i<<","<<estimate[0]<<","<<estimate[1]<<","<<v<<","<<yaw<<"\n";
+
 			}
 		}
 		viewer->addText("Accuracy - RMSE:", 30, 300, 20, 1, 1, 1, "rmse");
@@ -149,6 +177,11 @@ public:
 		viewer->addText(" Y: "+std::to_string(rmse[1]), 30, 250, 20, 1, 1, 1, "rmse_y");
 		viewer->addText("Vx: "	+std::to_string(rmse[2]), 30, 225, 20, 1, 1, 1, "rmse_vx");
 		viewer->addText("Vy: "	+std::to_string(rmse[3]), 30, 200, 20, 1, 1, 1, "rmse_vy");
+		
+		char str[10];
+		sprintf(str, "%.2f s", timestamp/1000000.0);
+		string strTemp(str);
+		viewer->addText("time: " + strTemp, 30, 175, 20, 1, 1, 1, "timestamp");
 
 		if(timestamp > 1.0e6)
 		{
@@ -156,27 +189,31 @@ public:
 			if(rmse[0] > rmseThreshold[0])
 			{
 				rmseFailLog[0] = rmse[0];
+				cout<<"failed due to x = "<<rmse[0]<<endl;
 				pass = false;
 			}
 			if(rmse[1] > rmseThreshold[1])
 			{
 				rmseFailLog[1] = rmse[1];
+				cout<<"failed due to y = "<<rmse[1]<<endl;
 				pass = false;
 			}
 			if(rmse[2] > rmseThreshold[2])
 			{
 				rmseFailLog[2] = rmse[2];
+				cout<<"failed due to vx = "<<rmse[2]<<endl;
 				pass = false;
 			}
 			if(rmse[3] > rmseThreshold[3])
 			{
 				rmseFailLog[3] = rmse[3];
+				cout<<"failed due to vy = "<<rmse[3]<<endl;
 				pass = false;
 			}
 		}
 		if(!pass)
 		{
-			viewer->addText("RMSE Failed Threshold", 30, 150, 20, 1, 0, 0, "rmse_fail");
+			viewer->addText("RMSE Failed Threshold [0.30, 0.16, 0.95, 0.70]", 30, 150, 20, 1, 0, 0, "rmse_fail");
 			if(rmseFailLog[0] > 0)
 				viewer->addText(" X: "+std::to_string(rmseFailLog[0]), 30, 125, 20, 1, 0, 0, "rmse_fail_x");
 			if(rmseFailLog[1] > 0)

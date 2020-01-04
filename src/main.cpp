@@ -27,17 +27,41 @@ int main(int argc, char** argv)
 
 	double egoVelocity = 25;
 
+	// output results for postprocess analysis
+	highway.NIS_ouput.open("NIS.csv");
+	highway.NIS_ouput<<"Time, Traffic ID, Lidar NIS, Radar NIS \n";
+
+	highway.groundTruth_data.open("groundTruth_data.csv");
+	highway.groundTruth_data<<"Time, Traffic ID, ground truth x, ground truth y, ground truth v, ground truth yaw \n";
+
+	highway.estimated_data.open("estimated_data.csv");
+	highway.estimated_data<<"Time, Traffic ID, estimated x, estimated y, estimated v, estimated yaw \n";	
+
+	highway.lidarMeasured_data.open("lidarMeasured_data.csv");
+	highway.lidarMeasured_data<<"Time, Traffic ID, lidar measured x, lidar measured y \n";
+
+	highway.radarMeasured_data.open("radarMeasured_data.csv");
+	highway.radarMeasured_data<<"Time, Traffic ID, radar measured  rho, radar measured phi, radar measured rho_dot \n";
+	
+	
+
 	while (frame_count < (frame_per_sec*sec_interval))
 	{
 		viewer->removeAllPointClouds();
 		viewer->removeAllShapes();
 
-		//stepHighway(egoVelocity,time_us, frame_per_sec, viewer);
 		highway.stepHighway(egoVelocity,time_us, frame_per_sec, viewer);
+
 		viewer->spinOnce(1000/frame_per_sec);
 		frame_count++;
 		time_us = 1000000*frame_count/frame_per_sec;
 		
 	}
 
+	// close the file
+	highway.NIS_ouput.close();
+	highway.groundTruth_data.close();
+	highway.estimated_data.close();
+	highway.lidarMeasured_data.close();
+	highway.radarMeasured_data.close();
 }

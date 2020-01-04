@@ -15,6 +15,12 @@ class UKF {
    * Destructor
    */
   virtual ~UKF();
+  
+
+  /**
+   * Init Initializes Unscented Kalman filter
+  */
+  void Init(MeasurementPackage meas_package);
 
   /**
    * ProcessMeasurement
@@ -95,6 +101,15 @@ class UKF {
 
   // Sigma point spreading parameter
   double lambda_;
+
+  Eigen::MatrixXd R_lidar_;
+  Eigen::MatrixXd R_radar_;
+  
+  // NIS (normalized innovation squared) for radar 
+  double NIS_radar_;
+
+  // NIS (normalized innovation squared) for lidar 
+  double NIS_lidar_;
 };
 
 #endif  // UKF_H
